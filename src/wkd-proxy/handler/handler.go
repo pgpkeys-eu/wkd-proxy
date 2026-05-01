@@ -46,7 +46,14 @@ func (h *Handler) WkdGet(w http.ResponseWriter, r *http.Request, p httprouter.Pa
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/octet-stream")
 
-	res, err := http.Get(h.Keyserver + "/pks/lookup?op=get&exact=on&search=" + p.ByName("l"))
+	localpart := p.ByName("l")
+	domain := p.ByName("domain")
+	if localpart == "" || domain == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	res, err := http.Get(h.Keyserver + "/pks/lookup?op=get&exact=on&search=" + localpart + "@" + domain)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
