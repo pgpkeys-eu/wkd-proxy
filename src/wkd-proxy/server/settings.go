@@ -12,13 +12,15 @@ import (
 )
 
 type HTTPConfig struct {
-	Bind string `toml:"bind"`
+	Bind              string `toml:"bind"`
+	LogRequestDetails bool   `toml:"logRequestDetails"`
 }
 
 type HTTPSConfig struct {
-	Bind string `toml:"bind"`
-	Cert string `toml:"cert"`
-	Key  string `toml:"key"`
+	Bind              string `toml:"bind"`
+	LogRequestDetails bool   `toml:"logRequestDetails"`
+	Cert              string `toml:"cert"`
+	Key               string `toml:"key"`
 }
 
 type Settings struct {

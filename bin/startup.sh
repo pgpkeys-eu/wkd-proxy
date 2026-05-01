@@ -13,4 +13,5 @@ EOF
   exit 1
 fi
 
+echo "starting $bin/wkd-proxy"
 exec $bin/wkd-proxy -config $config

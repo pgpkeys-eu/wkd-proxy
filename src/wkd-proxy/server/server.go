@@ -3,14 +3,35 @@ package server
 import (
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/carbocation/interpose"
 	"github.com/julienschmidt/httprouter"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/tomb.v2"
+
+	"wkd-proxy/handler"
 )
+
+type statusCodeResponseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func NewStatusCodeResponseWriter(w http.ResponseWriter) *statusCodeResponseWriter {
+	// WriteHeader is not called if our response implicitly
+	// returns 200 OK, so we default to that status code.
+	return &statusCodeResponseWriter{w, http.StatusOK}
+}
+
+func (scrw *statusCodeResponseWriter) WriteHeader(code int) {
+	scrw.statusCode = code
+	scrw.ResponseWriter.WriteHeader(code)
+}
 
 type Server struct {
 	settings  *Settings
@@ -23,7 +44,54 @@ type Server struct {
 }
 
 func NewServer(settings *Settings) (s *Server, err error) {
-	s = &Server{}
+	handler, err := handler.NewHandler(settings.Keyserver)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	s = &Server{
+		settings: settings,
+		r:        httprouter.New(),
+	}
+
+	s.middle = interpose.New()
+	s.middle.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			start := time.Now()
+			rw.Header().Set("Server", fmt.Sprintf("%s/%s", s.settings.Software, s.settings.Version))
+			scrw := NewStatusCodeResponseWriter(rw)
+			next.ServeHTTP(scrw, req)
+			duration := time.Since(start)
+
+			fields := log.Fields{
+				req.Method:    req.URL.String(),
+				"duration":    duration.String(),
+				"host":        req.Host,
+				"status-code": scrw.statusCode,
+			}
+
+			if s.settings.HTTP.LogRequestDetails {
+				fields["from"] = req.RemoteAddr
+				fields["user-agent"] = req.UserAgent()
+
+				proxyHeaders := []string{
+					"x-forwarded-for",
+					"x-forwarded-host",
+					"x-forwarded-server",
+				}
+				for _, ph := range proxyHeaders {
+					if v := req.Header.Get(ph); v != "" {
+						fields[ph] = v
+					}
+				}
+			}
+
+			log.WithFields(fields).Info()
+		})
+	})
+	s.middle.UseHandler(s.r)
+
+	handler.Register(s.r)
 	return s, nil
 }
 

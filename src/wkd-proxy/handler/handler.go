@@ -1,0 +1,74 @@
+package handler
+
+import (
+	"net/http"
+
+	"github.com/julienschmidt/httprouter"
+	log "github.com/sirupsen/logrus"
+
+	"github.com/ProtonMail/go-crypto/openpgp/armor"
+)
+
+type Handler struct {
+	Keyserver string
+}
+
+func NewHandler(keyserver string) (h *Handler, err error) {
+	h = &Handler{
+		Keyserver: keyserver,
+	}
+	return h, nil
+}
+
+func (h *Handler) Register(r *httprouter.Router) {
+	r.OPTIONS("/.well-known/openpgpkey/:domain/policy", h.WkdGetHeadOptions)
+	r.GET("/.well-known/openpgpkey/:domain/policy", h.WkdPolicy)
+
+	r.OPTIONS("/.well-known/openpgpkey/:domain/hu/:hash", h.WkdGetHeadOptions)
+	r.GET("/.well-known/openpgpkey/:domain/hu/:hash", h.WkdGet)
+}
+
+func (h *Handler) WkdGetHeadOptions(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	log.Infof("OPTIONS")
+	w.Header().Set("Allow", "GET, HEAD, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *Handler) WkdPolicy(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	log.Infof("GET policy")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *Handler) WkdGet(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	log.Infof("GET lookup")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Content-Type", "application/octet-stream")
+
+	res, err := http.Get(h.Keyserver + "/pks/lookup?op=get&exact=on&search=" + p.ByName("l"))
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	defer res.Body.Close()
+
+	a, err := armor.Decode(res.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	b := []byte{}
+	_, err = a.Body.Read(b)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	_, err = w.Write(b)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+}
