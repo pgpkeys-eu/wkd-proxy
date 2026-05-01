@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"io"
 	"net/http"
+	"regexp"
 
 	"github.com/julienschmidt/httprouter"
 	log "github.com/sirupsen/logrus"
@@ -14,8 +16,11 @@ type Handler struct {
 }
 
 func NewHandler(keyserver string) (h *Handler, err error) {
+	// convert "hkp(s)" to "http(s)" in keyserver URL
+	r := regexp.MustCompile(`^hkp`)
+	k := r.ReplaceAll([]byte(keyserver), []byte("http"))
 	h = &Handler{
-		Keyserver: keyserver,
+		Keyserver: string(k),
 	}
 	return h, nil
 }
@@ -46,12 +51,14 @@ func (h *Handler) WkdGet(w http.ResponseWriter, r *http.Request, p httprouter.Pa
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/octet-stream")
 
-	localpart := p.ByName("l")
+	r.ParseForm()
+	localpart := r.Form.Get("l")
 	domain := p.ByName("domain")
 	if localpart == "" || domain == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+	log.Infof("lookup request for %s@%s", localpart, domain)
 
 	res, err := http.Get(h.Keyserver + "/pks/lookup?op=get&exact=on&search=" + localpart + "@" + domain)
 	if err != nil {
@@ -59,6 +66,10 @@ func (h *Handler) WkdGet(w http.ResponseWriter, r *http.Request, p httprouter.Pa
 		return
 	}
 	defer res.Body.Close()
+	if res.StatusCode != 200 {
+		w.WriteHeader(res.StatusCode)
+		return
+	}
 
 	a, err := armor.Decode(res.Body)
 	if err != nil {
@@ -66,8 +77,7 @@ func (h *Handler) WkdGet(w http.ResponseWriter, r *http.Request, p httprouter.Pa
 		return
 	}
 
-	b := []byte{}
-	_, err = a.Body.Read(b)
+	b, err := io.ReadAll(a.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
