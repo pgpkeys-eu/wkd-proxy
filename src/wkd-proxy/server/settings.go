@@ -17,10 +17,9 @@ type HTTPConfig struct {
 }
 
 type HTTPSConfig struct {
-	Bind              string `toml:"bind"`
-	LogRequestDetails bool   `toml:"logRequestDetails"`
-	Cert              string `toml:"cert"`
-	Key               string `toml:"key"`
+	Bind string `toml:"bind"`
+	Cert string `toml:"cert"`
+	Key  string `toml:"key"`
 }
 
 type Settings struct {
