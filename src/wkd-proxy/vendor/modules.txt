@@ -23,8 +23,6 @@ github.com/ProtonMail/go-crypto/openpgp/errors
 # github.com/carbocation/interpose v0.0.0-20161206215253-723534742ba3
 ## explicit
 github.com/carbocation/interpose
-# github.com/cloudflare/circl v1.6.2
-## explicit; go 1.22.0
 # github.com/codegangsta/inject v0.0.0-20150114235600-33e0aa1cb7c0
 ## explicit
 # github.com/go-martini/martini v0.0.0-20170121215854-22fa46961aab
