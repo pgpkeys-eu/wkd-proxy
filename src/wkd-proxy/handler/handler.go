@@ -63,29 +63,34 @@ func (h *Handler) WkdGet(w http.ResponseWriter, r *http.Request, p httprouter.Pa
 	res, err := http.Get(h.Keyserver + "/pks/lookup?op=get&exact=on&search=" + localpart + "@" + domain)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		log.Errorf("lookup error: %v", err)
 		return
 	}
 	defer res.Body.Close()
 	if res.StatusCode != 200 {
 		w.WriteHeader(res.StatusCode)
+		log.Errorf("got non-200 status from HKP: %d", res.StatusCode)
 		return
 	}
 
 	a, err := armor.Decode(res.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		log.Errorf("decode error: %v", err)
 		return
 	}
 
 	b, err := io.ReadAll(a.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		log.Errorf("read error: %v", err)
 		return
 	}
 
 	_, err = w.Write(b)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		log.Errorf("write error: %v", err)
 		return
 	}
 }
